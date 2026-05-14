@@ -19,7 +19,7 @@ const config = [
         exports: 'named',
       },
     ],
-    external: ['crypto'],
+    external: ['crypto', 'node-fetch'],
     plugins: [
       typescript({
         tsconfig: './tsconfig.json',
@@ -33,7 +33,7 @@ const config = [
       file: 'dist/index.d.ts',
       format: 'esm',
     },
-    external: ['crypto'],
+    external: ['crypto', 'node-fetch'],
     plugins: [dts()],
   },
 ];

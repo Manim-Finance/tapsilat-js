@@ -12,6 +12,19 @@ import {
 } from "../errors/TapsilatError";
 import { InterceptorManager } from "./interceptors";
 
+let fetchPolyfill: typeof fetch | undefined;
+
+async function getFetch(): Promise<typeof fetch> {
+  if (typeof fetch !== "undefined") {
+    return fetch;
+  }
+  if (!fetchPolyfill) {
+    const mod = await import("node-fetch");
+    fetchPolyfill = (mod.default || mod) as unknown as typeof fetch;
+  }
+  return fetchPolyfill;
+}
+
 /**
  * @category HTTP
  * @summary Configuration options for individual HTTP requests
@@ -290,13 +303,6 @@ export class HttpClient {
     options: RequestInit,
     timeout?: number
   ): Promise<APIResponse<T>> {
-    if (typeof fetch === "undefined") {
-      throw new TapsilatNetworkError(
-        "fetch is not defined. Please provide a fetch polyfill for Node.js versions below 18.",
-        "FETCH_UNAVAILABLE"
-      );
-    }
-
     const hasAbortController = typeof AbortController !== "undefined";
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -309,7 +315,7 @@ export class HttpClient {
         requestOptions = { ...options, signal: controller.signal };
       }
 
-      const fetchPromise = fetch(url, requestOptions);
+      const fetchPromise = (await getFetch())(url, requestOptions);
 
       const response = await (timeout && !hasAbortController
         ? Promise.race([
