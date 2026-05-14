@@ -290,18 +290,35 @@ export class HttpClient {
     options: RequestInit,
     timeout?: number
   ): Promise<APIResponse<T>> {
-    const controller = new AbortController();
-    const timeoutId = timeout
-      ? setTimeout(() => controller.abort(), timeout)
-      : null;
+    if (typeof fetch === "undefined") {
+      throw new TapsilatNetworkError(
+        "fetch is not defined. Please provide a fetch polyfill for Node.js versions below 18.",
+        "FETCH_UNAVAILABLE"
+      );
+    }
+
+    const hasAbortController = typeof AbortController !== "undefined";
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     try {
-      const requestOptions: RequestInit = {
-        ...options,
-        signal: controller.signal,
-      };
+      let requestOptions: RequestInit = options;
 
-      const response = await fetch(url, requestOptions);
+      if (hasAbortController && timeout) {
+        const controller = new AbortController();
+        timeoutId = setTimeout(() => controller.abort(), timeout);
+        requestOptions = { ...options, signal: controller.signal };
+      }
+
+      const fetchPromise = fetch(url, requestOptions);
+
+      const response = await (timeout && !hasAbortController
+        ? Promise.race([
+            fetchPromise,
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("TIMEOUT")), timeout)
+            ),
+          ])
+        : fetchPromise);
 
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -314,7 +331,10 @@ export class HttpClient {
       }
 
       if (error instanceof Error) {
-        if (error.name === "AbortError") {
+        if (hasAbortController && error.name === "AbortError") {
+          throw new TapsilatNetworkError("Request timeout", "TIMEOUT");
+        }
+        if (!hasAbortController && error.message === "TIMEOUT") {
           throw new TapsilatNetworkError("Request timeout", "TIMEOUT");
         }
         throw new TapsilatNetworkError(
