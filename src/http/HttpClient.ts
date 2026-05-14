@@ -569,17 +569,34 @@ export class HttpClient {
     body?: RequestBody,
     config?: RequestConfig
   ): Promise<RequestInit> {
-    const headers = new Headers({
+    const headers: Record<string, string> = {
       "User-Agent": `TapsilatSDK/1.0.0`,
       Authorization: `Bearer ${this.config.bearerToken}`,
       Accept: "application/json",
-      ...(config?.headers as Record<string, string>),
-    });
+    };
+
+    // Merge custom headers if provided
+    if (config?.headers) {
+      if (Array.isArray(config.headers)) {
+        for (const [key, value] of config.headers) {
+          headers[key] = value;
+        }
+      } else if (
+        typeof Headers !== "undefined" &&
+        config.headers instanceof Headers
+      ) {
+        config.headers.forEach((value, key) => {
+          headers[key] = value;
+        });
+      } else if (typeof config.headers === "object") {
+        Object.assign(headers, config.headers);
+      }
+    }
 
     // Set content type for requests with body
     if (body && method !== "GET") {
       if (!(body instanceof FormData)) {
-        headers.set("Content-Type", "application/json");
+        headers["Content-Type"] = "application/json";
       }
     }
 
